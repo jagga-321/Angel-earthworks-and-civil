@@ -373,7 +373,7 @@ var DR = {
 var DS = {
   businessName:"Angel Earthworks and Civil", abn:"",
   address:"Victor Harbor / Goolwa SA 5211", phone:"", email:"",
-  accountName:"Angel Earthworks and Civil", bsb:"085-005", accountNo:"289 498 929", bank:"NAB", nextInvoice:1,
+  accountName:"", bsb:"", accountNo:"", bank:"", nextInvoice:1,
   rates:{...DR}
 };
 
@@ -3053,93 +3053,89 @@ function crewDeleteEntry(id){
 function shareInvoice(id){
   var inv=invoices.find(function(i){return i.id===id;});
   if(!inv) return;
+
   var r=settings.rates||{};
   var biz=settings.businessName||"Angel Earthworks and Civil";
-  var abn=settings.abn||"12 173 760 280";
-  var addr=settings.address||"Goolwa, SA";
-  var phone=settings.phone||"0447099712";
-  var email=settings.email||"Jagga-321@hotmail.com";
-  var bank=settings.bank||"";
-  var bsb=settings.bsb||"";
-  var accountNo=settings.accountNo||"";
-  var accountName=settings.accountName||biz;
-
-  var issued=new Date(inv.date).toLocaleDateString("en-AU",{day:"2-digit",month:"short",year:"numeric"});
-  var due=new Date(inv.dueDate).toLocaleDateString("en-AU",{day:"2-digit",month:"short",year:"numeric"});
-
   var lines=[
-    "════════════════════════════════",
-    "           TAX INVOICE",
-    "════════════════════════════════",
-    "Invoice No:   "+inv.invoiceNo,
-    "Date Issued:  "+issued,
-    "Payment Due:  "+due,
+    "════════════════════════",
+    "        TAX INVOICE",
+    "════════════════════════",
+    biz,
+    settings.abn?"ABN: "+settings.abn:"",
+    settings.address||"",
+    settings.phone||"",
+    settings.email||"",
     "",
+    "Invoice No:  "+inv.invoiceNo,
+    "Date Issued: "+new Date(inv.date).toLocaleDateString("en-AU",{day:"2-digit",month:"short",year:"numeric"}),
+    "Payment Due: "+new Date(inv.dueDate).toLocaleDateString("en-AU",{day:"2-digit",month:"short",year:"numeric"}),
+    "",
+    "────────────────────────",
     "BILL TO:",
     inv.client,
     inv.clientAddress||"",
-    "",
-    "FROM:",
-    biz,
-    "ABN: "+abn,
-    addr,
-    phone+"  |  "+email,
-    "────────────────────────────────",
+    "────────────────────────",
     ""
   ];
 
   inv.items.forEach(function(item,i){
-    var d=new Date(item.startTime).toLocaleDateString("en-AU",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
+    var dateStr=new Date(item.startTime).toLocaleDateString("en-AU",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
     var desc=item.machine+(item.attachment&&item.attachment!=="None"&&item.attachment!=="General Bucket"?" — "+item.attachment:"");
-    lines.push((i+1)+". "+d);
-    lines.push("   "+desc);
+    lines.push((i+1)+". "+desc);
     lines.push("   "+item.hireType);
+    lines.push("   "+dateStr+(item.site?" | "+item.site:""));
     if(item.operator) lines.push("   Operator: "+item.operator);
-    if(item.hireType==="Day Rate (Dry + Operator)"){
+    if(item.hireType&&item.hireType.startsWith("Day Rate (Dry + Operator)")){
       lines.push("   Machine: $"+(r.excavatorDayRate||250)+"/day flat rate");
       lines.push("   Operator: "+fmtHrs(item.duration)+" @ $"+(r.operatorRate||60)+"/hr");
     } else if(item.hireType==="Day Rate (Machine Only)"){
       lines.push("   Machine only: $"+(r.excavatorDayRate||250)+"/day");
     } else {
-      lines.push("   "+fmtHrs(item.duration)+" @ $"+item.rate+"/hr");
+      lines.push("   "+fmtHrs(item.duration)+" @ $"+item.rate+"/hr ex GST");
     }
-    lines.push("   Amount: $"+item.total.toFixed(2));
+    lines.push("   Amount: $"+item.total.toFixed(2)+" ex GST");
     lines.push("");
   });
 
-  lines.push("────────────────────────────────");
-  lines.push("Subtotal (ex GST):    $"+inv.subtotal.toFixed(2));
-  lines.push("GST (10%):            $"+inv.gst.toFixed(2));
-  lines.push("════════════════════════════════");
-  lines.push("TOTAL DUE:            $"+inv.totalGST.toFixed(2));
-  lines.push("════════════════════════════════");
+  lines.push("────────────────────────");
+  lines.push("Subtotal:      $"+inv.subtotal.toFixed(2));
+  lines.push("GST (10%):     $"+inv.gst.toFixed(2));
+  lines.push("════════════════════════");
+  lines.push("TOTAL DUE:  $"+inv.totalGST.toFixed(2)+" (inc GST)");
+  lines.push("════════════════════════");
   lines.push("");
 
-  if(bank||bsb||accountNo){
+  var hasBank=settings.bank||settings.bsb||settings.accountNo;
+  if(hasBank){
     lines.push("PAYMENT DETAILS:");
-    lines.push("────────────────────────────────");
-    if(bank)        lines.push("Bank:          "+bank);
-    if(accountName) lines.push("Account Name:  "+accountName);
-    if(bsb)         lines.push("BSB:           "+bsb);
-    if(accountNo)   lines.push("Account No:    "+accountNo);
-    lines.push("Reference:     "+inv.invoiceNo);
+    lines.push("────────────────────────");
+    if(settings.bank) lines.push("Bank:        "+settings.bank);
+    if(settings.accountName) lines.push("Acct Name:   "+settings.accountName);
+    if(settings.bsb) lines.push("BSB:         "+settings.bsb);
+    if(settings.accountNo) lines.push("Account No:  "+settings.accountNo);
+    lines.push("Reference:   "+inv.invoiceNo);
+    lines.push("");
+  } else {
+    lines.push("⚠ Add bank details in Settings to show payment info.");
     lines.push("");
   }
 
-  if(inv.notes) lines.push("Note: "+inv.notes+"
+  if(inv.notes) lines.push("Notes: "+inv.notes+"
 ");
-  lines.push("Site: "+(inv.items[0]&&inv.items[0].site?inv.items[0].site:""));
-  lines.push("Thank you for your business and the opportunity to work with you.");
-  lines.push("");
-  lines.push(biz+"  |  ABN: "+abn+"  |  "+phone+"  |  "+email+"  |  "+addr);
+  lines.push("Thank you for your business.");
+  lines.push(biz+" | "+( settings.phone||"")+" | "+(settings.email||""));
 
-  var text=lines.filter(function(l){return l!==undefined;}).join("
-");
+  var text=lines.filter(function(l){return l!==undefined&&l!=="";}).join("\n");
 
   if(navigator.share){
-    navigator.share({title:"Invoice "+inv.invoiceNo+" — "+biz,text:text}).catch(function(){});
+    navigator.share({
+      title:"Invoice "+inv.invoiceNo+" — "+biz,
+      text:text
+    }).catch(function(){});
   } else if(navigator.clipboard){
-    navigator.clipboard.writeText(text).then(function(){toast("Invoice copied to clipboard 📋");});
+    navigator.clipboard.writeText(text).then(function(){
+      toast("Invoice copied to clipboard 📋");
+    });
   } else {
     openModal("📤 Send Invoice — "+inv.invoiceNo);
     document.getElementById("modal-body").innerHTML=
